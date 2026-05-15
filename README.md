@@ -30,6 +30,8 @@ This MCP server provides complete QuickBooks Online API integration for Claude C
 - **TypeScript** - Full type safety with Zod validation
 - **Tested** - Jest test suite with ESM support
 
+> Note: this is a local MCP server. It runs as a stdio subprocess on the developer's or partner's machine and authenticates to a QuickBooks Online company.
+
 ---
 
 ## Quick Start
