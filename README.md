@@ -1,17 +1,15 @@
-# QuickBooks Online MCP Server
+# @missionsquad/mcp-quickbooks
 
 <div align="center">
 
-**A comprehensive Model Context Protocol (MCP) server for QuickBooks Online**
+**Mission Squad MCP server for QuickBooks Online with hidden secret injection**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Tools](https://img.shields.io/badge/Tools-144-green.svg)](#available-tools)
 [![Entities](https://img.shields.io/badge/Entities-29-orange.svg)](#entities)
 [![Reports](https://img.shields.io/badge/Reports-11-purple.svg)](#reports)
-[![Coverage](https://img.shields.io/badge/Coverage-100%25-brightgreen.svg)](#testing)
-[![Tests](https://img.shields.io/badge/Tests-396-blue.svg)](#testing)
 
-[Quick Start](#quick-start) | [Available Tools](#available-tools) | [Authentication](#authentication) | [Documentation](#documentation)
+[Quick Start](#quick-start) | [Mission Squad Hidden Secrets](#mission-squad-hidden-secrets) | [Available Tools](#available-tools) | [Authentication](#authentication) | [Documentation](#documentation)
 
 </div>
 
@@ -19,7 +17,9 @@
 
 ## Overview
 
-This MCP server provides complete QuickBooks Online API integration for Claude Code and other MCP-compatible clients. It includes full CRUD operations for 29 entity types and 11 financial reports, giving you comprehensive access to QuickBooks Online functionality.
+This MCP server provides complete QuickBooks Online API integration for Mission Squad, Claude Code, and any other MCP-compatible host. It includes full CRUD operations for 29 entity types and 11 financial reports.
+
+QuickBooks credentials are delivered to each tool call through Mission Squad's hidden secret injection contract: they are stored per user in `mcp-api`, injected into the outbound MCP arguments immediately before execution, and read at runtime via `context.extraArgs`. They never appear in any tool schema, tool description, or prompt the LLM sees. Local standalone use is still supported through `QUICKBOOKS_*` environment variables as a fallback.
 
 ### Key Features
 
@@ -30,7 +30,7 @@ This MCP server provides complete QuickBooks Online API integration for Claude C
 - **TypeScript** - Full type safety with Zod validation
 - **Tested** - Jest test suite with ESM support
 
-> Note: this is a local MCP server. It runs as a stdio subprocess on the developer's or partner's machine and authenticates to a QuickBooks Online company.
+> Runs as a stdio MCP subprocess. On Mission Squad it is a shared process that serves many users concurrently, with each call resolving credentials from the per-user hidden-secret store. Locally it runs as a single-user process backed by `QUICKBOOKS_*` env vars.
 
 ---
 
@@ -39,45 +39,33 @@ This MCP server provides complete QuickBooks Online API integration for Claude C
 ### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/mcp-quickbooks-online.git
-cd mcp-quickbooks-online
-
-# Install dependencies
+git clone https://github.com/missionsquad/mcp-quickbooks.git
+cd mcp-quickbooks
 npm install
-
-# Build the project
 npm run build
 ```
 
-### Configuration
+### Run on Mission Squad
 
-Copy the template `.env.example` to `.env` in the root directory and fill in your values:
+Register the server in `mcp-api` with the secret metadata in [Mission Squad Hidden Secrets](#mission-squad-hidden-secrets). The process starts before any user has configured secrets — credentials are resolved per tool call from `context.extraArgs`, with a `UserError` returned to the client if any required secret is missing.
+
+### Run locally
+
+Copy `.env.example` to `.env`, fill in your QuickBooks app credentials, and complete the OAuth handshake once:
 
 ```bash
 cp .env.example .env
+npm run auth        # opens a browser for sandbox OAuth, writes tokens back to .env
 ```
 
-```env
-QUICKBOOKS_CLIENT_ID=your_client_id
-QUICKBOOKS_CLIENT_SECRET=your_client_secret
-QUICKBOOKS_ENVIRONMENT=sandbox
-QUICKBOOKS_REFRESH_TOKEN=your_refresh_token
-QUICKBOOKS_REALM_ID=your_realm_id
-```
-
-`.env` is gitignored so your real credentials stay local.
-
-### Claude Code Integration
-
-Add to your Claude Code MCP configuration:
+Then point any MCP client at the built entry point:
 
 ```json
 {
   "mcpServers": {
     "quickbooks": {
       "command": "node",
-      "args": ["path/to/mcp-quickbooks-online/dist/index.js"],
+      "args": ["path/to/mcp-quickbooks/dist/index.js"],
       "env": {
         "QUICKBOOKS_CLIENT_ID": "your_client_id",
         "QUICKBOOKS_CLIENT_SECRET": "your_client_secret",
@@ -89,6 +77,90 @@ Add to your Claude Code MCP configuration:
   }
 }
 ```
+
+The env block is only used by the local fallback path. On Mission Squad it can stay empty.
+
+---
+
+## Mission Squad Hidden Secrets
+
+The server declares the following hidden secret names. They are injected into every tool call via `context.extraArgs` and are never present in the tool schema sent to the LLM.
+
+| `secretName` | Required | Purpose |
+|---|---|---|
+| `clientId` | yes | Intuit app client ID |
+| `clientSecret` | yes | Intuit app client secret |
+| `refreshToken` | yes | OAuth 2.0 refresh token for the user's QuickBooks Online company |
+| `realmId` | yes | QuickBooks Online company (realm) ID |
+| `environment` | no (defaults to `sandbox`) | `sandbox` or `production` |
+
+Suggested `mcp-api` server registration payload:
+
+```json
+{
+  "name": "mcp-quickbooks",
+  "transportType": "stdio",
+  "command": "node",
+  "args": ["/opt/mcp-quickbooks/dist/index.js"],
+  "secretNames": [
+    "clientId",
+    "clientSecret",
+    "refreshToken",
+    "realmId",
+    "environment"
+  ],
+  "secretFields": [
+    {
+      "name": "clientId",
+      "label": "Intuit app client ID",
+      "description": "Client ID from the Intuit Developer Portal app's Keys & Credentials page.",
+      "required": true,
+      "inputType": "password"
+    },
+    {
+      "name": "clientSecret",
+      "label": "Intuit app client secret",
+      "description": "Client secret from the Intuit Developer Portal app's Keys & Credentials page.",
+      "required": true,
+      "inputType": "password"
+    },
+    {
+      "name": "refreshToken",
+      "label": "QuickBooks refresh token",
+      "description": "OAuth 2.0 refresh token for the QuickBooks Online company. Obtain it by running the local `npm run auth` flow once.",
+      "required": true,
+      "inputType": "password"
+    },
+    {
+      "name": "realmId",
+      "label": "QuickBooks realm (company) ID",
+      "description": "Numeric company ID returned by the OAuth handshake.",
+      "required": true,
+      "inputType": "password"
+    },
+    {
+      "name": "environment",
+      "label": "QuickBooks environment",
+      "description": "Either \"sandbox\" or \"production\". Defaults to \"sandbox\" if omitted.",
+      "required": false,
+      "inputType": "password"
+    }
+  ],
+  "enabled": true
+}
+```
+
+### Precedence
+
+For each field, the server resolves the value in this order:
+
+1. Hidden per-call extra arg from `context.extraArgs`.
+2. Local environment fallback (`QUICKBOOKS_CLIENT_ID`, `QUICKBOOKS_CLIENT_SECRET`, `QUICKBOOKS_REFRESH_TOKEN`, `QUICKBOOKS_REALM_ID`, `QUICKBOOKS_ENVIRONMENT`).
+3. A `UserError` is returned to the caller listing the missing fields.
+
+### Refresh-token rotation note
+
+Intuit rotates QuickBooks refresh tokens periodically (typically every ~24 hours). When that happens the rotated token is held in the per-credential client cache for the lifetime of the server process; previously-issued refresh tokens remain valid for 24 hours after rotation per Intuit's policy. After a long Mission Squad-hosted run, update the stored `refreshToken` secret if the original 100-day lifetime is approaching expiry — the server logs a warning to stderr when fewer than 14 days remain.
 
 ---
 

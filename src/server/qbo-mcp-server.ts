@@ -1,23 +1,19 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { FastMCP } from "@missionsquad/fastmcp";
+
+const SERVER_NAME = "QuickBooks Online MCP Server";
+const SERVER_VERSION = "0.1.0" as const;
 
 export class QuickbooksMCPServer {
-  private static instance: McpServer | null = null;
+  private static instance: FastMCP | null = null;
 
   private constructor() {}
 
-  public static GetServer(): McpServer {
+  public static GetServer(): FastMCP {
     if (QuickbooksMCPServer.instance === null) {
-      QuickbooksMCPServer.instance = new McpServer(
-        {
-          name: "QuickBooks Online MCP Server",
-          version: "1.0.0",
-        },
-        {
-          capabilities: {
-            tools: {},
-          },
-        }
-      );
+      QuickbooksMCPServer.instance = new FastMCP({
+        name: SERVER_NAME,
+        version: SERVER_VERSION,
+      });
     }
     return QuickbooksMCPServer.instance;
   }

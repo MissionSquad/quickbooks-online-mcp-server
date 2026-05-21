@@ -2,46 +2,83 @@
 /**
  * QuickBooks OAuth Authentication Server
  *
- * Fix for Issue #6: This script was missing, causing `npm run auth` to fail.
+ * Local CLI that runs the OAuth 2.0 handshake interactively and writes the
+ * resulting tokens to `.env`. Used for standalone (non-MissionSquad) usage,
+ * where `process.env` is the source of truth for QuickBooks credentials.
  *
  * Usage: npm run auth
- *
- * This script initiates the OAuth 2.0 flow to obtain QuickBooks API tokens.
- * It will:
- * 1. Start a local server on port 8000
- * 2. Open your browser to the QuickBooks authorization page
- * 3. Handle the callback and save tokens to .env
- * 4. Close automatically when complete
- *
- * Prerequisites:
- * - QUICKBOOKS_CLIENT_ID and QUICKBOOKS_CLIENT_SECRET must be set in .env
- * - http://localhost:8000/callback must be registered as a redirect URI in your Intuit app
  */
 
-import { quickbooksClient } from './clients/quickbooks-client.js';
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-async function main() {
-  console.log('QuickBooks OAuth Authentication');
-  console.log('================================\n');
-  console.log('Starting OAuth flow...');
-  console.log('A browser window will open for you to authorize the application.\n');
+import dotenv from "dotenv";
+
+import { QuickbooksClient } from "./clients/quickbooks-client.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, "..", ".env") });
+
+process.on("uncaughtException", (err) => {
+  console.error("[auth-server] uncaughtException:", err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[auth-server] unhandledRejection:", reason);
+});
+
+async function main(): Promise<void> {
+  const clientId = process.env.QUICKBOOKS_CLIENT_ID;
+  const clientSecret = process.env.QUICKBOOKS_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    console.error(
+      "QUICKBOOKS_CLIENT_ID and QUICKBOOKS_CLIENT_SECRET must be set in .env to run the OAuth flow."
+    );
+    process.exit(1);
+  }
+
+  const environmentRaw = (
+    process.env.QUICKBOOKS_ENVIRONMENT ?? "sandbox"
+  ).toLowerCase();
+  if (environmentRaw !== "sandbox" && environmentRaw !== "production") {
+    console.error(
+      `QUICKBOOKS_ENVIRONMENT must be "sandbox" or "production" (got "${environmentRaw}").`
+    );
+    process.exit(1);
+  }
+
+  const redirectUri =
+    process.env.QUICKBOOKS_REDIRECT_URI ?? "http://localhost:8000/callback";
+
+  const client = new QuickbooksClient({
+    clientId,
+    clientSecret,
+    refreshToken: process.env.QUICKBOOKS_REFRESH_TOKEN ?? "",
+    realmId: process.env.QUICKBOOKS_REALM_ID ?? "",
+    environment: environmentRaw,
+    redirectUri,
+    interactive: true,
+  });
+
+  console.log("QuickBooks OAuth Authentication");
+  console.log("================================\n");
+  console.log("Starting OAuth flow...");
+  console.log(
+    "A browser window will open for you to authorize the application.\n"
+  );
 
   try {
-    // The authenticate method will trigger the OAuth flow if no tokens exist
-    await quickbooksClient.authenticate();
-
-    console.log('\n✓ Successfully authenticated with QuickBooks!');
-    console.log('Tokens have been saved to your .env file.');
-    console.log('\nYou can now use the MCP server.');
-
+    await client.authenticate();
+    console.log("\nSuccessfully authenticated with QuickBooks.");
+    console.log("Tokens have been saved to your .env file.");
     process.exit(0);
   } catch (error) {
-    console.error('\n✗ Authentication failed:', error);
-    console.error('\nPlease check:');
-    console.error('1. QUICKBOOKS_CLIENT_ID is set correctly in .env');
-    console.error('2. QUICKBOOKS_CLIENT_SECRET is set correctly in .env');
-    console.error('3. http://localhost:8000/callback is registered as a redirect URI in your Intuit app');
-
+    console.error("\nAuthentication failed:", error);
+    console.error("\nPlease check:");
+    console.error("1. QUICKBOOKS_CLIENT_ID is set correctly in .env");
+    console.error("2. QUICKBOOKS_CLIENT_SECRET is set correctly in .env");
+    console.error(
+      "3. The redirect URI is registered for the app in the Intuit developer portal"
+    );
     process.exit(1);
   }
 }

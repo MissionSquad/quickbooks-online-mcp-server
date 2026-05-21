@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { QuickbooksMCPServer } from "./server/qbo-mcp-server.js";
 // import { ListInvoicesTool } from "./tools/list-invoices.tool.js";
 // import { CreateCustomerTool } from "./tools/create-customer.tool.js";
@@ -425,8 +424,7 @@ const main = async () => {
   RegisterTool(server, GetVendorBalanceTool);
 
   // Start receiving messages on stdin and sending messages on stdout
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  await server.start({ transportType: "stdio" });
 };
 
 main().catch((error) => {
