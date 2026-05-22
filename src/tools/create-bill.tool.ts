@@ -33,6 +33,11 @@ const lineSchema = z.object({
   }).optional(),
 }).passthrough();
 
+// The "allow extra QBO fields" calls below are intentional and safe: they
+// appear on the inner `bill` and `lineSchema` objects, never at the top
+// level. Mission Squad hidden secrets are injected at the root of the tool
+// arguments, so the wrapping `z.object({ params })` in RegisterTool routes
+// them to extraArgs and strips them from `args` before this schema is parsed.
 const toolSchema = z.object({
   bill: z.object({
     Line: z.array(lineSchema),

@@ -53,6 +53,64 @@ describe('Bill Handlers', () => {
       expect(result.isError).toBe(true);
       expect(result.error).toContain('Error: Auth failed');
     });
+
+    it('should pass already-nested line items through unchanged', async () => {
+      const mockBill = { Id: '2', TotalAmt: 250 };
+      let receivedPayload: any;
+      mockQuickBooksInstance.createBill.mockImplementation((payload: any, cb: any) => {
+        receivedPayload = payload;
+        cb(null, mockBill);
+      });
+
+      const alreadyNestedLine = {
+        Amount: 250,
+        DetailType: 'AccountBasedExpenseLineDetail',
+        AccountBasedExpenseLineDetail: {
+          AccountRef: { value: '7' },
+          BillableStatus: 'NotBillable',
+        },
+      };
+      const itemBasedLine = {
+        Amount: 100,
+        DetailType: 'ItemBasedExpenseLineDetail',
+        ItemBasedExpenseLineDetail: {
+          ItemRef: { value: '12' },
+          Qty: 2,
+        },
+      };
+
+      const result = await createQuickbooksBill({
+        Line: [alreadyNestedLine, itemBasedLine],
+        VendorRef: { value: '56' },
+      });
+
+      expect(result.isError).toBe(false);
+      // Already-nested lines must be forwarded untouched (no AccountRef hoisting)
+      expect(receivedPayload.Line[0]).toEqual(alreadyNestedLine);
+      expect(receivedPayload.Line[1]).toEqual(itemBasedLine);
+    });
+
+    it('should pass lines with neither AccountRef nor nested detail through unchanged', async () => {
+      const mockBill = { Id: '3', TotalAmt: 75 };
+      let receivedPayload: any;
+      mockQuickBooksInstance.createBill.mockImplementation((payload: any, cb: any) => {
+        receivedPayload = payload;
+        cb(null, mockBill);
+      });
+
+      // No AccountRef, no AccountBasedExpenseLineDetail, no ItemBasedExpenseLineDetail.
+      // Reshaper should leave this line exactly as supplied.
+      const plainLine = { Amount: 75, DetailType: 'DescriptionOnly', Description: 'Misc' };
+
+      const result = await createQuickbooksBill({
+        Line: [plainLine],
+        VendorRef: { value: '56' },
+      });
+
+      expect(result.isError).toBe(false);
+      expect(receivedPayload.Line[0]).toEqual(plainLine);
+      expect(receivedPayload.Line[0].AccountBasedExpenseLineDetail).toBeUndefined();
+    });
   });
 
   describe('getQuickbooksBill', () => {

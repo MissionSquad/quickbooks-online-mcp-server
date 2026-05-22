@@ -133,7 +133,11 @@ describe('TimeActivity Handlers', () => {
 
     it('should update a time activity with all optional fields', async () => {
       const mockUpdated = { Id: '123', Hours: 8, Minutes: 30, Description: 'Updated task' };
-      mockQuickBooksInstance.updateTimeActivity.mockImplementation((payload: any, cb: any) => cb(null, mockUpdated));
+      let receivedPayload: any;
+      mockQuickBooksInstance.updateTimeActivity.mockImplementation((payload: any, cb: any) => {
+        receivedPayload = payload;
+        cb(null, mockUpdated);
+      });
 
       const result = await updateQuickbooksTimeActivity({
         id: '123',
@@ -141,10 +145,17 @@ describe('TimeActivity Handlers', () => {
         hours: 8,
         minutes: 30,
         description: 'Updated task',
-        billable_status: 'Billable'
+        billable_status: 'Billable',
+        item_ref: 'item-42',
       });
 
       expect(result.isError).toBe(false);
+      // item_ref must be mapped to the QBO-native ItemRef shape
+      expect(receivedPayload.ItemRef).toEqual({ value: 'item-42' });
+      expect(receivedPayload.Hours).toBe(8);
+      expect(receivedPayload.Minutes).toBe(30);
+      expect(receivedPayload.Description).toBe('Updated task');
+      expect(receivedPayload.BillableStatus).toBe('Billable');
     });
 
     it('should handle API errors', async () => {

@@ -12,6 +12,14 @@ export default {
     'src/**/*.ts',
     '!src/**/*.d.ts',
     '!src/types/**/*.ts',
+    // CLI / wiring layers: bootstrap entry points and the per-request client
+    // factory exercise live OAuth and HTTP code paths that are out of scope
+    // for the unit-test suite (mocked in every handler test).
+    '!src/index.ts',
+    '!src/auth-server.ts',
+    '!src/server/**/*.ts',
+    '!src/clients/**/*.ts',
+    '!src/helpers/register-tool.ts',
   ],
   coverageThreshold: {
     global: {
